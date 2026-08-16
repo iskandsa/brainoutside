@@ -56,7 +56,11 @@ if not _env.DATABASE_URL:
 # to boot.
 _SQLITE_PREFIX = "sqlite:///"
 if _env.DATABASE_URL.startswith(_SQLITE_PREFIX):
-    _sqlite_path = Path(_env.DATABASE_URL[len(_SQLITE_PREFIX) - 1 :])
+    # Everything after the three-slash scheme IS the path, which is what
+    # makes the fourth slash the one that means "absolute":
+    #   sqlite:///brain.db   -> "brain.db"   (relative — refused below)
+    #   sqlite:////v/brain.db -> "/v/brain.db" (absolute — accepted)
+    _sqlite_path = Path(_env.DATABASE_URL[len(_SQLITE_PREFIX) :])
     if not _sqlite_path.is_absolute():
         raise ImproperlyConfigured(
             f"DATABASE_URL sqlite path must be absolute; got {str(_sqlite_path)!r}. "
