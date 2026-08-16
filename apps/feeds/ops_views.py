@@ -121,7 +121,14 @@ def feed_detail(request, pk: int):
             ),
             "validation": validation,
             "diffs": diffs,
-            "can_approve": bool(feed.status == "pending" and validation and validation.valid),
+            # Approve is gated on SAFETY only. Hygiene violations — filing
+            # the machine should do, or an editorial call — leave the button
+            # live and ask for a one-line reason instead. A single-operator
+            # brain whose owner cannot overrule it is a brain that refuses
+            # its owner's ideas, which is exactly what happened for four
+            # days: 13 of 14 queued violations were one hygiene rule.
+            "can_approve": bool(feed.status == "pending" and validation and validation.overridable),
+            "needs_override": bool(validation and validation.overridable and not validation.valid),
             "edit_files": list(enumerate((feed.proposal or {}).get("files") or [])),
             "edit_lines": list(enumerate((feed.proposal or {}).get("index_lines") or [])),
             **ops_context(request),
@@ -209,8 +216,23 @@ def _handle_action(request, feed: Feed) -> None:
 
     elif action == "approve":
         res = validator.validate_feed(feed)
-        if not res.valid:
-            messages.error(request, "Proposal fails validation — fix or reject; approve stays disabled.")
+        # Safety is absolute and is re-checked here, not just in the
+        # template: writing outside the repo, quoting private content,
+        # emptying a file, or blocked-script content. No reason clears these.
+        if res.safety_violations:
+            messages.error(
+                request,
+                f"{len(res.safety_violations)} safety violation(s) — these cannot be overridden. "
+                "Fix the proposal or reject it.",
+            )
+            return
+        override_reason = (request.POST.get("override_reason") or "").strip()
+        if not res.valid and not override_reason:
+            messages.error(
+                request,
+                f"{len(res.hygiene_violations)} hygiene violation(s) — approving anyway needs a "
+                "one-line reason, so the decision is on the record.",
+            )
             return
         # Atomic claim: double-clicks and racing tabs see 0 rows updated.
         # The timestamp is what later tells "a worker is on it" from "the
@@ -218,6 +240,23 @@ def _handle_action(request, feed: Feed) -> None:
         claimed = Feed.objects.filter(pk=feed.pk, status="pending").update(
             status="approving", approve_claimed_at=timezone.now()
         )
+        if claimed and override_reason:
+            # Written in the same breath as the claim, so an override can
+            # never land as a silent approval. The rules it overrode are
+            # named, not just the reason — "approved anyway" is useless a
+            # month later without knowing what was waived.
+            waived = ", ".join(sorted({f"rule {v.rule}" for v in res.hygiene_violations}))
+            Feed.objects.filter(pk=feed.pk).update(
+                decision_note=f"Approved over {waived}: {override_reason}"
+            )
+            emit(
+                "feed",
+                action="override",
+                feed_id=feed.pk,
+                source_id=feed.source_id,
+                waived=waived,
+                reason=override_reason,
+            )
         if not claimed:
             messages.error(request, "Feed is already being applied.")
             return

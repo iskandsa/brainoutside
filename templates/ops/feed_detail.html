@@ -1,7 +1,12 @@
 {% extends "ops/_layout.html" %}
 
-{% block page_title_tag %}Feed · {{ feed.source_id }}{% endblock %}
-{% block page_title %}<span class="font-mono [overflow-wrap:anywhere]">{{ feed.source_id }}</span>{% endblock %}
+{% comment %}
+  The number leads here too, so the page you land on confirms the feed
+  you were told to open. Without it the queue names a feed one way and
+  its own detail page names it another.
+{% endcomment %}
+{% block page_title_tag %}Feed #{{ feed.pk }} · {{ feed.source_id }}{% endblock %}
+{% block page_title %}<span class="text-muted">#{{ feed.pk }}</span> <span class="font-mono [overflow-wrap:anywhere]">{{ feed.source_id }}</span>{% endblock %}
 {% block page_subtitle %}
   <p class="mt-1 text-sm text-muted">
     via {{ feed.channel }} · {{ feed.created_at|date:"Y-m-d H:i" }}
@@ -124,21 +129,36 @@
 
   {% if validation %}
     <div class="card mb-4">
+      {% comment %}
+        Split, because the two kinds mean opposite things to the reader.
+        Safety BLOCKS and no reason clears it. Hygiene does not block —
+        it is filing, or a judgement that is the owner's to make — so it
+        is shown in the warning colour, not the danger colour. Rendering
+        both in red taught the operator that every violation was a wall.
+      {% endcomment %}
       <div class="card-header">
         <h2 class="card-title">Validation</h2>
         {% if validation.valid %}
           <span class="badge badge-ok">passes rules 1&ndash;8</span>
+        {% elif validation.safety_violations %}
+          <span class="badge badge-danger">{{ validation.safety_violations|length }} blocking</span>
         {% else %}
-          <span class="badge badge-danger">{{ validation.violations|length }} violation{{ validation.violations|length|pluralize }}</span>
+          <span class="badge badge-warn">{{ validation.hygiene_violations|length }} to tidy &mdash; you can still approve</span>
         {% endif %}
       </div>
       {% if validation.violations or validation.warnings %}
         <div class="card-body space-y-1">
-          {% for v in validation.violations %}
-            <div class="text-xs text-danger-ink">rule {{ v.rule }} · <span class="font-mono">{{ v.path }}</span> — {{ v.message }}</div>
+          {% for v in validation.safety_violations %}
+            <div class="text-xs text-danger-ink">
+              <span class="badge badge-danger">blocks</span>
+              rule {{ v.rule }} · <span class="font-mono">{{ v.path }}</span> — {{ v.message }}
+            </div>
+          {% endfor %}
+          {% for v in validation.hygiene_violations %}
+            <div class="text-xs text-warn-ink">rule {{ v.rule }} · <span class="font-mono">{{ v.path }}</span> — {{ v.message }}</div>
           {% endfor %}
           {% for w in validation.warnings %}
-            <div class="text-xs text-warn-ink">warn — {{ w }}</div>
+            <div class="text-xs text-muted">warn — {{ w }}</div>
           {% endfor %}
         </div>
       {% endif %}
@@ -237,18 +257,36 @@
         </div>
         <div class="card-body flex flex-wrap items-center gap-3">
           {% if can_approve %}
-            <form method="post" x-data="{busy: false}" @submit="setTimeout(() => busy = true)">
+            <form method="post" x-data="{busy: false}"
+                  class="flex min-w-40 grow flex-wrap items-center gap-2"
+                  @submit="setTimeout(() => busy = true)">
               {% csrf_token %}
               <input type="hidden" name="action" value="approve" />
+              {% if needs_override %}
+                {% comment %}
+                  Required, and deliberately so: an override is a decision,
+                  and a decision with no reason is indistinguishable from a
+                  mis-click when you read it back in a month. It lands in
+                  `decision_note` alongside the rules it waived.
+                {% endcomment %}
+                <div class="min-w-0 grow">
+                  <input type="text" name="override_reason" required maxlength="300"
+                         placeholder="Why approve with the tidy-ups outstanding? (required)"
+                         class="field-input" />
+                </div>
+              {% endif %}
               <button type="submit" :disabled="busy" class="btn-signal">
-                Approve{% if feed.proposal_edited %} (edited){% endif %}
+                Approve{% if needs_override %} anyway{% endif %}{% if feed.proposal_edited %} (edited){% endif %}
               </button>
             </form>
           {% else %}
-            <button type="button" disabled title="Validation must pass first" class="btn-signal">
+            <button type="button" disabled title="A blocking violation must be fixed first" class="btn-signal">
               Approve{% if feed.proposal_edited %} (edited){% endif %}
             </button>
-            <span class="text-xs text-muted">Fix the violations above to unlock approve.</span>
+            <span class="text-xs text-muted">
+              Blocked by {{ validation.safety_violations|length }} safety violation{{ validation.safety_violations|length|pluralize }} above &mdash;
+              these are the ones no reason can clear. Fix the proposal or reject it.
+            </span>
           {% endif %}
           <form method="post" class="flex min-w-40 grow flex-wrap items-center gap-2">
             {% csrf_token %}

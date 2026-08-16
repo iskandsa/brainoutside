@@ -79,6 +79,14 @@
     <table class="table table-hover">
       <thead>
         <tr>
+          {% comment %}
+            The number column exists because the pk is how every human
+            and agent refers to a feed out loud ("approve feed 5") and it
+            was previously visible ONLY inside the detail link's href.
+            The operator could be told which feed to look at and have no
+            way to find it on this page. It leads for the same reason.
+          {% endcomment %}
+          <th class="w-px whitespace-nowrap">#</th>
           <th>Source</th>
           <th>Channel</th>
           <th>Status</th>
@@ -89,9 +97,21 @@
       <tbody>
         {% for feed in feeds %}
           <tr>
+            <td class="whitespace-nowrap align-top font-mono text-sm text-muted">
+              <a class="text-accent" href="{% url 'brainconfig:feed-detail' feed.pk %}">#{{ feed.pk }}</a>
+            </td>
             <td>
-              <a class="font-mono text-accent" href="{% url 'brainconfig:feed-detail' feed.pk %}">{{ feed.source_id }}</a>
-              {% if feed.raw_payload.title %}<div class="mt-0.5 text-xs text-muted">{{ feed.raw_payload.title|truncatechars:80 }}</div>{% endif %}
+              {% comment %}
+                Title leads, slug follows. The slug is the commit subject
+                and still needs to be readable, but it is not how anyone
+                recognises what they captured.
+              {% endcomment %}
+              {% if feed.raw_payload.title %}
+                <a class="font-medium text-accent" href="{% url 'brainconfig:feed-detail' feed.pk %}">{{ feed.raw_payload.title|truncatechars:80 }}</a>
+                <div class="mt-0.5 font-mono text-xs text-muted [overflow-wrap:anywhere]">{{ feed.source_id }}</div>
+              {% else %}
+                <a class="font-mono text-accent" href="{% url 'brainconfig:feed-detail' feed.pk %}">{{ feed.source_id }}</a>
+              {% endif %}
             </td>
             <td class="whitespace-nowrap text-muted">{{ feed.channel }}</td>
             <td>
@@ -107,7 +127,13 @@
               </span>
               {% if feed.status == 'pending' %}
                 {% if feed.proposal %}
-                  <span class="badge badge-info ms-1">ready to review</span>
+                  {% comment %}
+                    Size of the decision, not just its existence. "ready to
+                    review" does not say whether approving writes one note
+                    or fifteen, and that is the thing the operator wants to
+                    know before opening it.
+                  {% endcomment %}
+                  <span class="badge badge-info ms-1">{{ feed.proposal.files|length }} change{{ feed.proposal.files|length|pluralize }} ready</span>
                 {% elif feed.error %}
                   <span class="badge badge-danger ms-1" title="{{ feed.error }}">extraction failed</span>
                 {% elif feed.extraction_in_flight %}
@@ -121,11 +147,16 @@
               {% endif %}
             </td>
             <td class="whitespace-nowrap text-xs font-mono text-muted">{{ feed.payload_bytes|filesizeformat }}</td>
-            <td class="whitespace-nowrap text-xs font-mono text-muted">{{ feed.created_at|date:"Y-m-d H:i" }}</td>
+            {% comment %}
+              Relative first — "3 hours ago" answers "is this the one I
+              just sent?" without arithmetic. The exact stamp stays one
+              hover away rather than being lost.
+            {% endcomment %}
+            <td class="whitespace-nowrap text-xs text-muted" title="{{ feed.created_at|date:'Y-m-d H:i' }}">{{ feed.created_at|timesince }} ago</td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="5" class="px-4 py-10 text-center text-muted">
+            <td colspan="6" class="px-4 py-10 text-center text-muted">
               {% if f_status %}
                 No {{ f_status }} feeds — <a class="link-accent" href="{% url 'brainconfig:feeds' %}">show all statuses</a>.
               {% else %}

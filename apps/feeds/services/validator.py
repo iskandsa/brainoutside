@@ -69,6 +69,16 @@ class Violation:
     rule: int
     path: str
     message: str
+    # Safety violations can NEVER be overridden by the operator: writing
+    # outside the repo, leaking private content, emptying a file, or
+    # content in a script the brain has explicitly blocked. Everything
+    # else is hygiene — either filing the machine should be doing itself,
+    # or an editorial call that belongs to the person whose brain this is.
+    #
+    # The split exists because the gate used to be all-or-nothing, and a
+    # single-operator brain with no override means the machine outranks
+    # the human. It refused every note its owner wrote for four days.
+    safety: bool = False
 
     def __str__(self) -> str:  # pragma: no cover - repr only
         return f"rule {self.rule} [{self.path}]: {self.message}"
@@ -83,6 +93,23 @@ class ValidationResult:
     def valid(self) -> bool:
         return not self.violations
 
+    @property
+    def safety_violations(self) -> list[Violation]:
+        return [v for v in self.violations if v.safety]
+
+    @property
+    def hygiene_violations(self) -> list[Violation]:
+        return [v for v in self.violations if not v.safety]
+
+    @property
+    def overridable(self) -> bool:
+        """True when nothing but hygiene stands between this and approval.
+
+        Approving on an override is a recorded decision, not a bypass —
+        the reason lands in `Feed.decision_note`.
+        """
+        return not self.safety_violations
+
 
 @dataclass
 class ValidationContext:
@@ -93,9 +120,31 @@ class ValidationContext:
     entities: dict[str, dict] = field(default_factory=dict)
     # Full text of every `visibility: private` entity (rule 8).
     private_texts: list[str] = field(default_factory=list)
-    # The feed's source kind — rule 2 allows a null source_url for
-    # "thought" (contract §5 rule 2 amendment, 2026-07-30).
+    # The feed's source kind. Kept for reporting; rule 2 no longer branches
+    # on it — see `captured_source_url` below for why.
     source_kind: str = ""
+    # The URL the CAPTURE actually carried, or "" when it had none.
+    #
+    # Rule 2 used to waive source_url for the single literal source_kind
+    # "thought". Every other kind had to produce a URL. But the write doors
+    # (MCP, API) accept any kind string at all, and the ops form does not
+    # even offer "thought" for most captures — so notes arrived labelled
+    # "note", "doc", "transcript" and were refused for lacking a web
+    # address they never had. Four of the owner's first five feeds died
+    # here, and the only one that passed was the one with a real URL.
+    #
+    # Worse, the rule was unsatisfiable in principle: rule 2 demanded a
+    # URL while compiler rule 5 forbids inventing anything not in the
+    # source. The only legal move was to fabricate, which the contract
+    # bans. There was no way through by design.
+    #
+    # The rule the contract actually states (§5 rule 2) is that provenance
+    # is mandatory — `source` — and that a URL is one form of it, valid
+    # "ONLY for direct thoughts" to be null. So: `source` stays required
+    # unconditionally, and the URL is required exactly when the capture had
+    # one to carry. Dropping provenance you were given is still a
+    # violation; not having any was never the note's fault.
+    captured_source_url: str = ""
     # Rule 6, opted into by the brain's CLAUDE.md. Empty = nothing blocked.
     blocked_scripts: tuple[str, ...] = ()
     # Names the brain asked for that this server does not know. Carried so
@@ -295,15 +344,17 @@ def validate(proposal: dict, ctx: ValidationContext) -> ValidationResult:
             res.violations.append(Violation(5, path, f"unknown action {action!r} — only create/update exist"))
             continue
         if ".." in path or path.startswith(("/", "\\")) or ":" in path.split("/")[0]:
-            res.violations.append(Violation(5, path, "path escapes the repo"))
+            res.violations.append(Violation(5, path, "path escapes the repo", safety=True))
             continue
         if not path.startswith(ALLOWED_PREFIXES):
             res.violations.append(
-                Violation(5, path, f"proposals may only touch {', '.join(ALLOWED_PREFIXES)}")
+                Violation(5, path, f"proposals may only touch {', '.join(ALLOWED_PREFIXES)}", safety=True)
             )
             continue
         if not content.strip():
-            res.violations.append(Violation(5, path, "empty content — emptying a file is a deletion"))
+            res.violations.append(
+                Violation(5, path, "empty content — emptying a file is a deletion", safety=True)
+            )
             continue
         if action == "update" and not any(e["path"] == path for e in ctx.entities.values()) and not path.startswith(("raw/", "content-catalog/")):
             res.violations.append(Violation(5, path, "update targets a file that does not exist"))
@@ -318,6 +369,7 @@ def validate(proposal: dict, ctx: ValidationContext) -> ValidationResult:
                         6, path,
                         f"{script}-script content — your CLAUDE.md lists "
                         f"{script} under Blocked scripts",
+                        safety=True,
                     )
                 )
 
@@ -391,7 +443,9 @@ def validate(proposal: dict, ctx: ValidationContext) -> ValidationResult:
             n = _norm(line)
             if len(n) >= PRIVATE_QUOTE_MIN_CHARS and n in all_content:
                 res.violations.append(
-                    Violation(8, "", f"proposal quotes private content: “{line.strip()[:80]}…”")
+                    Violation(
+                        8, "", f"proposal quotes private content: “{line.strip()[:80]}…”", safety=True
+                    )
                 )
                 break  # one violation per private file is enough signal
 
@@ -433,10 +487,14 @@ def _validate_note(path, content, allowed_topics, res, proposed_note_ids, ctx):
     # -- rule 2: provenance is mandatory --
     if not str(fm.get("source") or "").strip():
         res.violations.append(Violation(2, path, "source missing — no note without provenance"))
-    if not str(fm.get("source_url") or "").strip() and ctx.source_kind != "thought":
-        # Direct thoughts have no URL: `source` (the feed id / raw
-        # archive) IS the provenance (contract §5 rule 2, 2026-07-30).
-        res.violations.append(Violation(2, path, "source_url missing — no note without provenance"))
+    if not str(fm.get("source_url") or "").strip() and ctx.captured_source_url:
+        # A URL is owed only when the capture carried one. Dropping
+        # provenance that was handed to you is the real failure; having
+        # none to begin with is what a direct thought looks like, and
+        # `source` (the feed id / raw archive) is its provenance.
+        res.violations.append(
+            Violation(2, path, "source_url missing — the capture carried one; put it on the note")
+        )
 
     # -- rule 3: topics ⊆ taxonomy --
     topics = _as_list(fm.get("topics"))
@@ -515,4 +573,5 @@ def validate_feed(feed) -> ValidationResult:
         return res
     ctx = context_from_repo()
     ctx.source_kind = str((feed.raw_payload or {}).get("source_kind") or "")
+    ctx.captured_source_url = str((feed.raw_payload or {}).get("source_url") or "").strip()
     return validate(feed.proposal, ctx)
