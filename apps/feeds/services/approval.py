@@ -183,10 +183,23 @@ def _apply_index_lines(repo: Path, proposal: dict) -> None:
     for entry in proposal.get("index_lines") or []:
         new_line = str(entry.get("line", "")).rstrip()
         path = validator.index_line_path(new_line)
+        # `raw/` is NEVER indexed (contract §4): archives are reachable only
+        # through a link in a note or card the reader was already allowed to
+        # open. They also carry no frontmatter, so they are not entities and
+        # can never appear in `targets` — a feeder that proposes an INDEX
+        # line for one produced an entry that must not be written either way.
+        # Dropping it is the contract-correct outcome; failing the whole
+        # commit over it stranded four good lessons on a bad sixth line.
+        if path.startswith("raw/"):
+            log.warning(
+                "index line for %r dropped: raw/ is never indexed (contract §4)", path
+            )
+            continue
         if path not in targets:
             raise ApplyFailure(
-                f"index line points at {path!r}, which is not a file this "
-                f"proposal carries: {new_line!r}"
+                f"index line points at {path!r}, which this proposal does not "
+                f"create as an indexable entity (a file with `id` frontmatter): "
+                f"{new_line!r}"
             )
         replaced = False
         for i, line in enumerate(lines):
