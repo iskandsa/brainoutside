@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from apps.brain.services import gitrepo
 from apps.events.models import emit
-from apps.feeds.models import Feed
+from apps.feeds.models import OVERRIDE_NOTE_PREFIX, Feed
 from apps.feeds.services import validator
 
 log = logging.getLogger(__name__)
@@ -450,6 +450,12 @@ def apply_feed(feed_id: int) -> str:
                 try:
                     ctx = validator.context_from_repo()
                     ctx.source_kind = str((feed.raw_payload or {}).get("source_kind") or "")
+                    # Must match validate_feed(), or the gate the operator
+                    # saw and the gate that commits disagree — which is
+                    # exactly how feed 5 came to be approved and then fail.
+                    ctx.captured_source_url = str(
+                        (feed.raw_payload or {}).get("source_url") or ""
+                    ).strip()
                     # Validate BEFORE writing anything. `validate` is pure
                     # over (proposal, ctx) and `ctx` is captured from the
                     # pre-apply repo either way, so this is the same answer
@@ -459,10 +465,31 @@ def apply_feed(feed_id: int) -> str:
                     # first and only `_rollback` took it back out, which
                     # made a correctness check depend on cleanup working.
                     res = validator.validate(proposal, ctx)
-                    if not res.valid:
+                    # Safety is absolute on both sides of the door and is
+                    # re-checked here on purpose: the repo can move between
+                    # the operator's click and this commit.
+                    if res.safety_violations:
+                        raise ApplyFailure(
+                            "pre-commit safety violation: "
+                            + "; ".join(str(v) for v in res.safety_violations[:5])
+                        )
+                    # Hygiene is the operator's call, and they already made
+                    # it — the reason is in decision_note. Refusing again
+                    # here would mean the button said yes and the worker
+                    # said no, which is how feed 5 landed as `failed` after
+                    # a deliberate, reasoned approval. Without a recorded
+                    # override, hygiene still blocks.
+                    overridden = (feed.decision_note or "").startswith(OVERRIDE_NOTE_PREFIX)
+                    if res.hygiene_violations and not overridden:
                         raise ApplyFailure(
                             "pre-commit validation failed: "
-                            + "; ".join(str(v) for v in res.violations[:5])
+                            + "; ".join(str(v) for v in res.hygiene_violations[:5])
+                        )
+                    if res.hygiene_violations:
+                        log.warning(
+                            "feed %s: committing over %d hygiene violation(s) on a "
+                            "recorded operator override — %s",
+                            feed.pk, len(res.hygiene_violations), feed.decision_note[:120],
                         )
                     _apply_files(repo, proposal)
                     _apply_index_lines(repo, proposal)

@@ -22,7 +22,7 @@ from apps.brain.services import gitrepo
 from apps.brainconfig.nav import ops_context
 from apps.events.models import emit
 
-from .models import Feed
+from .models import OVERRIDE_NOTE_PREFIX, Feed
 from .services import diffview, feeder, intake, validator
 
 SOURCE_KINDS = ("yt", "blog", "x", "newsletter", "repo", "doc", "thought")
@@ -247,7 +247,7 @@ def _handle_action(request, feed: Feed) -> None:
             # month later without knowing what was waived.
             waived = ", ".join(sorted({f"rule {v.rule}" for v in res.hygiene_violations}))
             Feed.objects.filter(pk=feed.pk).update(
-                decision_note=f"Approved over {waived}: {override_reason}"
+                decision_note=f"{OVERRIDE_NOTE_PREFIX}{waived}: {override_reason}"
             )
             emit(
                 "feed",

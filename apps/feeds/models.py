@@ -17,6 +17,14 @@ from django.db import models
 from django.utils import timezone
 
 
+#: Marks a `decision_note` written by an operator override — approval over
+#: outstanding HYGIENE violations, with a reason. The ops view writes it and
+#: the approval worker reads it, so the worker's own pre-commit gate knows a
+#: human already made this call and does not refuse the same rules twice.
+#: Safety violations are unaffected: neither gate will pass those, ever.
+OVERRIDE_NOTE_PREFIX = "Approved over "
+
+
 class Feed(models.Model):
     CHANNELS = [
         ("ui", "ui"),
