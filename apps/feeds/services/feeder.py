@@ -292,7 +292,7 @@ def run_extraction(feed_id: int, attempt: int = 1) -> str:
             # Carried in `issues` rather than a new key: the proposal schema
             # is additionalProperties:False, and `issues` is already the
             # "read this before approving" channel the detail page renders.
-            proposal["issues"] = [f"tidied — {r}" for r in repairs] + list(
+            proposal["issues"] = [f"{repair.NOTE_PREFIX}{r}" for r in repairs] + list(
                 proposal.get("issues") or []
             )
             log.info("feed %s: repaired %d filing problem(s)", feed.pk, len(repairs))

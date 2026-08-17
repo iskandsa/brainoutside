@@ -23,7 +23,7 @@ from apps.brainconfig.nav import ops_context
 from apps.events.models import emit
 
 from .models import OVERRIDE_NOTE_PREFIX, Feed
-from .services import diffview, feeder, intake, validator
+from .services import diffview, feeder, intake, repair, validator
 
 SOURCE_KINDS = ("yt", "blog", "x", "newsletter", "repo", "doc", "thought")
 
@@ -108,6 +108,13 @@ def feed_detail(request, pk: int):
         else None
     )
     diffs = diffview.build(feed.proposal, gitrepo.repo_dir()) if feed.proposal else []
+    # `issues` carries two unlike things: filing the repair pass already
+    # corrected (informational, nothing to decide) and genuine flags from
+    # the feeder (read before approving). Split here rather than in the
+    # template so neither box renders empty.
+    _issues = list((feed.proposal or {}).get("issues") or [])
+    tidied = [i for i in _issues if i.startswith(repair.NOTE_PREFIX)]
+    feeder_issues = [i for i in _issues if not i.startswith(repair.NOTE_PREFIX)]
     return render(
         request,
         "ops/feed_detail.html",
@@ -121,6 +128,8 @@ def feed_detail(request, pk: int):
             ),
             "validation": validation,
             "diffs": diffs,
+            "tidied": tidied,
+            "feeder_issues": feeder_issues,
             # Approve is gated on SAFETY only. Hygiene violations — filing
             # the machine should do, or an editorial call — leave the button
             # live and ask for a one-line reason instead. A single-operator

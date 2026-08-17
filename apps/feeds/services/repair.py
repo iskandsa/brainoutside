@@ -26,6 +26,11 @@ from datetime import date
 from . import validator
 
 # knowledge/<folder>/ per note type. The plural folder is the contract's.
+#: Marks a repair note inside the proposal's `issues` list. The feeder
+#: writes it and the ops view reads it to keep tidying separate from
+#: genuine flags — one constant so the two cannot drift apart.
+NOTE_PREFIX = "tidied — "
+
 _TYPE_FOLDER = {"take": "takes", "story": "stories", "lesson": "lessons", "fact": "facts"}
 _HEADING_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 
