@@ -28,7 +28,7 @@ from django.utils import timezone
 from apps.brain.services import gitrepo
 from apps.events.models import emit
 from apps.feeds.models import Feed
-from apps.feeds.services import validator
+from apps.feeds.services import repair, validator
 from apps.reader.services import sdk_runner
 
 log = logging.getLogger(__name__)
@@ -276,7 +276,27 @@ def run_extraction(feed_id: int, attempt: int = 1) -> str:
 
     feed.sdk_operation_id = run.operation_id
     if run.ok and isinstance(run.structured_output, dict):
-        feed.proposal = normalize_index_lines(run.structured_output)
+        # Repair the filing BEFORE anyone sees it. Rules 1/2/5/7 are mostly
+        # bookkeeping — filename vs id, folder vs type, create vs update, a
+        # missing INDEX line, a stale last-verified — and handing those to
+        # the operator as violations to fix by hand in a YAML textarea is
+        # what made this queue unusable. Judgement calls are untouched.
+        #
+        # Repair first, then normalise: repair can move a file, and the
+        # normaliser recomposes each INDEX tail from the FINAL path.
+        ctx = validator.context_from_repo()
+        ctx.source_kind = str((feed.raw_payload or {}).get("source_kind") or "")
+        ctx.captured_source_url = str((feed.raw_payload or {}).get("source_url") or "").strip()
+        proposal, repairs = repair.repair(run.structured_output, ctx)
+        if repairs:
+            # Carried in `issues` rather than a new key: the proposal schema
+            # is additionalProperties:False, and `issues` is already the
+            # "read this before approving" channel the detail page renders.
+            proposal["issues"] = [f"tidied — {r}" for r in repairs] + list(
+                proposal.get("issues") or []
+            )
+            log.info("feed %s: repaired %d filing problem(s)", feed.pk, len(repairs))
+        feed.proposal = normalize_index_lines(proposal)
         feed.error = ""
         feed.extract_queued_at = None
         feed.save(update_fields=["sdk_operation_id", "proposal", "error", "extract_queued_at"])
