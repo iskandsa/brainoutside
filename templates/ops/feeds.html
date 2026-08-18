@@ -11,6 +11,52 @@
 
 {% block content %}
   {% comment %}
+    The capture lane that cannot fail. Open by default and first on the
+    page, because it is the thing used most and the thing that stopped
+    being used: a direct thought had to survive an extraction it never
+    needed, and rules written for published content. Here the thought IS
+    the verbatim quote, the topic is picked from the live taxonomy rather
+    than guessed, and provenance is the feed id — so the note is valid the
+    moment it is written and one click away from being filed.
+  {% endcomment %}
+  <details class="card mb-4" open>
+    <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+      Just save a thought <span class="font-normal text-muted">— written down verbatim, no extraction</span>
+    </summary>
+    <form method="post" x-data="{busy: false}" @submit="setTimeout(() => busy = true)"
+          class="grid gap-3 border-t border-line px-4 py-4">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_thought" />
+      <label class="text-sm">
+        <span class="mb-1 block text-xs text-muted">The thought &mdash; your words, kept exactly as typed</span>
+        <textarea name="thought" rows="5" required class="field-textarea"></textarea>
+      </label>
+      <div class="flex flex-wrap gap-3">
+        <label class="min-w-40 grow text-sm">
+          <span class="mb-1 block text-xs text-muted">Title (optional &mdash; the first line is used if blank)</span>
+          <input type="text" name="thought_title" maxlength="300" class="field-input" />
+        </label>
+        <label class="text-sm">
+          <span class="mb-1 block text-xs text-muted">File it as</span>
+          <select name="ntype" class="field-select">
+            {% for t in thought_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="text-sm">
+          <span class="mb-1 block text-xs text-muted">Topic (from your taxonomy)</span>
+          <select name="topic" required class="field-select">
+            <option value="">choose one</option>
+            {% for t in taxonomy %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <div>
+        <button type="submit" :disabled="busy" class="btn-primary">Save this thought</button>
+      </div>
+    </form>
+  </details>
+
+  {% comment %}
     The UI channel of the write door. Collapsed once the queue has
     history; open on an empty queue so the first capture is obvious.
     Submitting can fetch the URL server-side (slow), so the button arms

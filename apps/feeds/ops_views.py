@@ -23,7 +23,7 @@ from apps.brainconfig.nav import ops_context
 from apps.events.models import emit
 
 from .models import OVERRIDE_NOTE_PREFIX, Feed
-from .services import diffview, feeder, intake, repair, validator
+from .services import diffview, feeder, intake, repair, thought, validator
 
 SOURCE_KINDS = ("yt", "blog", "x", "newsletter", "repo", "doc", "thought")
 
@@ -32,6 +32,26 @@ SOURCE_KINDS = ("yt", "blog", "x", "newsletter", "repo", "doc", "thought")
 @require_http_methods(["GET", "POST"])
 def queue(request):
     if request.method == "POST":
+        # The lane that cannot fail. No agent, no extraction, no editorial
+        # choice — the thought is written down verbatim and filed correctly
+        # by construction, so "save this" is never refused for filing.
+        if request.POST.get("action") == "save_thought":
+            try:
+                feed = thought.capture(
+                    text=request.POST.get("thought", ""),
+                    title=request.POST.get("thought_title", ""),
+                    topic=request.POST.get("topic", ""),
+                    ntype=request.POST.get("ntype", "take"),
+                )
+            except intake.FeedRejected as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request,
+                    f"Saved as feed #{feed.pk} — written down and ready to approve.",
+                )
+            return redirect(request.path)
+
         try:
             feed = intake.propose(
                 channel="ui",
@@ -82,6 +102,8 @@ def queue(request):
             "statuses": [s for s, _ in Feed.STATUSES],
             "f_status": f_status,
             "source_kinds": SOURCE_KINDS,
+            "thought_types": thought.THOUGHT_TYPES,
+            "taxonomy": thought.taxonomy(),
             "payload_max_kb": intake.payload_max_bytes() // 1024,
             **ops_context(request),
         },
