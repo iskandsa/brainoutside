@@ -192,6 +192,7 @@ def propose(
     notes: str = "",
     source_id: str = "",
     consumer=None,
+    extract: bool = True,
 ) -> Feed:
     """Validate + capture one proposed source as a pending Feed.
 
@@ -254,7 +255,13 @@ def propose(
     # Fire-and-forget: the M2.2 feeder agent fills feed.proposal on the
     # worker. Enqueue failure is recorded on the row, never raised — the
     # capture is already safe.
-    from apps.feeds.services import feeder
+    #
+    # `extract=False` is for callers that ALREADY have a complete proposal
+    # and must not have it overwritten — the direct-thought lane composes
+    # its note deterministically, so an extraction here would spend an SDK
+    # run to replace a valid proposal with a guess at what the writer meant.
+    if extract:
+        from apps.feeds.services import feeder
 
-    feeder.enqueue_extraction(feed)
+        feeder.enqueue_extraction(feed)
     return feed

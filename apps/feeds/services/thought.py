@@ -75,6 +75,10 @@ def capture(*, text: str, title: str, topic: str, ntype: str = "take") -> Feed:
         title=title,
         content=text,
         source_id=f"thought-{month}-{slug}",
+        # No agent runs on this path. The proposal below IS the
+        # extraction; an SDK run here would spend money replacing a
+        # valid verbatim note with a guess at what the writer meant.
+        extract=False,
     )
 
     note_id = f"{ntype}-{month}-{slug}"
@@ -126,6 +130,24 @@ def _quote(text: str) -> str:
     return "\n".join(f"> {l}" if l.strip() else ">" for l in text.splitlines())
 
 
+def _verbatim(text: str) -> str:
+    """The thought as its own VERBATIM block (rule 4).
+
+    A one-line thought IS the quote; repeating it underneath as a second
+    blockquote printed the same sentence twice. Longer thoughts keep the
+    first line as the headline quote, and the remainder follows it.
+    """
+    lines = text.splitlines()
+    idx = next((i for i, l in enumerate(lines) if l.strip()), None)
+    if idx is None:
+        return '> VERBATIM: ""'
+    head = '> VERBATIM: "%s"' % lines[idx].strip()
+    rest = "\n".join(lines[idx + 1:])
+    if not rest.strip():
+        return head
+    return head + "\n>\n" + _quote(rest)
+
+
 def _note(*, note_id, ntype, topics, source, month, title, text, raw_path) -> str:
     return (
         "---\n"
@@ -140,8 +162,7 @@ def _note(*, note_id, ntype, topics, source, month, title, text, raw_path) -> st
         "visibility: agents-only\n"
         "---\n"
         f"# {title}\n\n"
-        "> VERBATIM: \"" + (text.splitlines()[0].strip() if text.strip() else "") + "\"\n\n"
-        + _quote(text) + "\n\n"
+        + _verbatim(text) + "\n\n"
         f"Captured as a direct thought — no source URL exists. Full text: `{raw_path}`.\n"
     )
 
