@@ -1,27 +1,50 @@
 {% extends "ops/_layout.html" %}
 
 {% block page_title_tag %}Chat{% endblock %}
-{% block page_title %}Chat with the mind{% endblock %}
+{% block page_title %}Ask your brain{% endblock %}
 {% block page_subtitle %}
   <p class="mt-1 text-sm text-muted">
-    The reader agent over one tier's snapshot per session — a public-tier session behaves exactly like a public clone would.
+    Put a question to everything you have fed it. This is what the rest of the system is for.
   </p>
 {% endblock %}
 {% block content_width %}max-w-[1600px]{% endblock %}
 
 {% block content %}
-  {# New-session form: choosing the tier IS the decision — everything else about a session follows from it. #}
-  <form method="post" class="card mb-4 flex flex-wrap items-end gap-3 p-4">
+  {% comment %}
+    One button to start asking. The tier picker was the FIRST thing on the
+    page, so answering "how do I use this?" began with a jargon decision
+    about visibility tiers — three steps before a question could be typed.
+    agents-only is the owner's own view (everything except private) and is
+    the right default every time he asks himself something. The tier bench
+    still exists, one fold down, for testing what a public consumer sees.
+  {% endcomment %}
+  <form method="post" class="card mb-4 p-4">
     {% csrf_token %}
-    <label class="text-sm">
-      <span class="mb-1 block text-xs text-muted">Tier for the new session</span>
-      <select name="tier" class="field-select">
-        {% for t in tiers %}<option value="{{ t }}" {% if t == "agents-only" %}selected{% endif %}>{{ t }}</option>{% endfor %}
-      </select>
-    </label>
-    <button type="submit" class="btn-primary">Start session</button>
-    <span class="text-xs text-muted">The tier is fixed for the life of the session — that's the point of the test bench.</span>
+    <input type="hidden" name="tier" value="agents-only" />
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="submit" class="btn-primary">Start asking</button>
+      <span class="text-xs text-muted">
+        Opens on your own view of the brain — every note except the private ones.
+      </span>
+    </div>
   </form>
+
+  <details class="card mb-4">
+    <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+      Test another tier <span class="font-normal text-muted">— see the brain as a public consumer would</span>
+    </summary>
+    <form method="post" class="flex flex-wrap items-end gap-3 border-t border-line px-4 py-4">
+      {% csrf_token %}
+      <label class="text-sm">
+        <span class="mb-1 block text-xs text-muted">Tier for the new session</span>
+        <select name="tier" class="field-select">
+          {% for t in tiers %}<option value="{{ t }}" {% if t == "agents-only" %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn-ghost">Start session</button>
+      <span class="text-xs text-muted">The tier is fixed for the life of the session — that's the point of the test bench.</span>
+    </form>
+  </details>
 
   {% if sessions %}
     <div class="card table-wrap">

@@ -45,12 +45,13 @@ def queue(request):
                 )
             except intake.FeedRejected as exc:
                 messages.error(request, str(exc))
-            else:
-                messages.success(
-                    request,
-                    f"Saved as feed #{feed.pk} — written down and ready to approve.",
-                )
-            return redirect(request.path)
+                return redirect(request.path)
+            # Land ON the feed, not back on a list. The whole complaint was
+            # that nothing takes you to where it matters; a success message
+            # naming a number you then have to go and find is that same
+            # failure in miniature.
+            messages.success(request, "Written down verbatim. Approve it and it is in your brain.")
+            return redirect("brainconfig:feed-detail", pk=feed.pk)
 
         try:
             feed = intake.propose(

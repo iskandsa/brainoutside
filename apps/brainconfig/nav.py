@@ -41,16 +41,34 @@ def ops_context(request) -> dict:
     base = settings_url.rsplit("settings/", 1)[0]
     # `icon` names resolve in templates/partials/_nav_icon.html; items
     # without one (the docs endpoint catalog) render label-only.
+    # Grouped, not a flat list of twelve. A flat list makes every page
+    # look equally important, so the two that ARE the job — approve what is
+    # waiting, and ask the brain something — sat sixth and fifth among
+    # plumbing. The owner's words: "there is absolutely nothing that takes
+    # me to where it matters."
+    #
+    # "Use it" leads and holds exactly those two. Everything else is
+    # inspection or plumbing and is labelled as such.
     sections = [
         {
-            "label": "Ops",
+            "label": "Use it",
+            "items": [
+                {"label": "Ask your brain", "icon": "chat", "url": reverse("brainconfig:chat")},
+                {"label": "Feed queue", "icon": "feeds", "url": reverse("brainconfig:feeds")},
+            ],
+        },
+        {
+            "label": "Look inside",
             "items": [
                 {"label": "Dashboard", "icon": "dashboard", "url": reverse("brainconfig:dashboard")},
                 {"label": "Brain browser", "icon": "browser", "url": reverse("brainconfig:browser")},
                 {"label": "Graph", "icon": "graph", "url": reverse("brainconfig:graph")},
                 {"label": "Timeline", "icon": "timeline", "url": reverse("brainconfig:timeline")},
-                {"label": "Feed queue", "icon": "feeds", "url": reverse("brainconfig:feeds")},
-                {"label": "Chat", "icon": "chat", "url": reverse("brainconfig:chat")},
+            ],
+        },
+        {
+            "label": "Plumbing",
+            "items": [
                 {"label": "Tasks", "icon": "tasks", "url": reverse("brainconfig:tasks")},
                 {"label": "Logs", "icon": "logs", "url": reverse("brainconfig:logs")},
                 {"label": "API keys", "icon": "keys", "url": reverse("brainconfig:consumers")},

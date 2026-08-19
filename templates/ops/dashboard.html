@@ -65,6 +65,41 @@
     </div>
   {% endif %}
 
+  {% comment %}
+    What needs you — first on the page, above every number.
+
+    The dashboard used to open with four stat tiles and a visualisation.
+    Pending feeds was one tile among them, so "two things are waiting for
+    your decision" read with exactly the weight of "you have 73 entities".
+    The owner's report was blunt and correct: nothing on the page took him
+    to where it mattered. A count is not a call to action; a button is.
+  {% endcomment %}
+  <div class="card mb-4 xl:mb-6">
+    <div class="card-header">
+      <h2 class="card-title">What needs you</h2>
+      <span class="text-xs text-muted">the whole job is these two things</span>
+    </div>
+    <div class="card-body grid gap-3 md:grid-cols-2">
+      <div class="flex flex-wrap items-center gap-3">
+        {% if pending_feeds %}
+          <a href="{% url 'brainconfig:feeds' %}?status=pending" class="btn-signal">
+            Review {{ pending_feeds }} waiting feed{{ pending_feeds|pluralize }}
+          </a>
+          <span class="text-xs text-muted">nothing is written to the brain until you approve it</span>
+        {% else %}
+          <span class="flex items-center gap-2 text-sm text-muted">
+            <span class="dot dot-ok"></span> Nothing waiting — the queue is clear.
+          </span>
+          <a href="{% url 'brainconfig:feeds' %}" class="btn-ghost btn-sm">Save a thought</a>
+        {% endif %}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="{% url 'brainconfig:chat' %}" class="btn-primary">Ask your brain</a>
+        <span class="text-xs text-muted">the point of all of this — put a question to what you have fed it</span>
+      </div>
+    </div>
+  </div>
+
   {# --- KPI row: the four numbers the operator actually compares ------- #}
   <div class="grid grid-cols-2 gap-4 xl:grid-cols-4 xl:gap-6">
     <a href="{% url 'brainconfig:browser' %}" class="stat-tile transition-colors hover:border-accent/40">

@@ -138,6 +138,7 @@
           <th>Status</th>
           <th>Payload</th>
           <th>Created</th>
+          <th class="w-px"></th>
         </tr>
       </thead>
       <tbody>
@@ -199,10 +200,22 @@
               hover away rather than being lost.
             {% endcomment %}
             <td class="whitespace-nowrap text-xs text-muted" title="{{ feed.created_at|date:'Y-m-d H:i' }}">{{ feed.created_at|timesince }} ago</td>
+            {% comment %}
+              The action on the row. Without it the only way in was to know
+              that the title is a link — a discoverability problem the owner
+              hit head-on: "where do I approve?"
+            {% endcomment %}
+            <td class="whitespace-nowrap text-end">
+              {% if feed.status == "pending" %}
+                <a class="btn-signal btn-sm" href="{% url 'brainconfig:feed-detail' feed.pk %}">Review &rarr;</a>
+              {% else %}
+                <a class="btn-ghost btn-sm" href="{% url 'brainconfig:feed-detail' feed.pk %}">Open</a>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="6" class="px-4 py-10 text-center text-muted">
+            <td colspan="7" class="px-4 py-10 text-center text-muted">
               {% if f_status %}
                 No {{ f_status }} feeds — <a class="link-accent" href="{% url 'brainconfig:feeds' %}">show all statuses</a>.
               {% else %}
