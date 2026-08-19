@@ -211,6 +211,15 @@ class Settings(BaseSettings):
     # orphaned and TTL out). Use this when a release changes the cached
     # value's shape and you can't tolerate stale-shape reads.
     CACHE_KEY_VERSION: str = "1"
+
+    #: Server-side agent runs (feed extraction, chat). Every one bills the
+    #: Anthropic API key in settings — a server cannot use a Max
+    #: subscription, so there is no free mode here. Off by default on this
+    #: install: the same work runs in Claude Code on the owner's
+    #: subscription at no marginal cost, via the mind-feeder and mind-reader
+    #: skills that live in the brain repo itself.
+    #: Capture, approval and browsing never touch an agent and are unaffected.
+    AGENT_RUNS_ENABLED: bool = False
     # env label baked into the cache key prefix so prod and
     # dev never share a key namespace even when pointed at the same
     # Redis instance (rare but happens during staging-against-prod-redis

@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import logging
 
+from django.conf import settings
 from django.utils import timezone
 
 from apps.brain.services import gitrepo
@@ -32,6 +33,11 @@ from apps.feeds.services import repair, validator
 from apps.reader.services import sdk_runner
 
 log = logging.getLogger(__name__)
+
+#: Shown wherever a paid run is refused, so the refusal names the way through.
+AGENT_OFF_HINT = (
+    "Run it in Claude Code instead: open the brain repo and use the mind-feeder skill (to digest a source) or mind-reader (to ask). Those run on your subscription and cost nothing per use."
+)
 
 FEEDER_TIER = "agents-only"
 MAX_ATTEMPTS = 3
@@ -226,6 +232,17 @@ def enqueue_extraction(feed: Feed) -> bool:
 
     Idempotent while a run is in flight: a second call is a no-op, not a
     second SDK spend (callers show their own "already running" notice)."""
+    # Paid work is off on this install. A server can only authenticate to
+    # Anthropic with an API key, billed per token — a Max subscription
+    # cannot be used from one. Extraction averaged $0.54 a feed here, for
+    # work Claude Code does on the subscription for nothing.
+    if not settings.AGENT_RUNS_ENABLED:
+        Feed.objects.filter(pk=feed.pk).update(
+            error="Digesting a source is switched off on the server (it costs "
+                  "money per run). " + AGENT_OFF_HINT
+        )
+        log.info("feed %s: extraction skipped — AGENT_RUNS_ENABLED is off", feed.pk)
+        return False
     if feed.extraction_in_flight:
         log.info("feed %s: extraction already in flight — not re-enqueueing", feed.pk)
         return True

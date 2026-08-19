@@ -64,7 +64,14 @@
     Alpine submit gotchas in CLAUDE.md — to stop double captures.
   {% endcomment %}
   <details class="card mb-6" {% if total == 0 %}open{% endif %}>
-    <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium">Propose a feed</summary>
+    <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+      Capture a source <span class="font-normal text-muted">— stored here, digested in Claude Code</span>
+    </summary>
+    <p class="border-t border-line px-4 pt-3 text-xs text-muted">
+      This records the source. Turning it into notes costs about $0.54 a run on
+      the server, so it happens in Claude Code on your subscription instead —
+      open the brain repo and use the <code class="font-mono">mind-feeder</code> skill.
+    </p>
     <form method="post" x-data="{busy: false}" @submit="setTimeout(() => busy = true)"
           class="grid gap-3 border-t border-line px-4 py-4">
       {% csrf_token %}

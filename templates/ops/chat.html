@@ -18,16 +18,38 @@
     the right default every time he asks himself something. The tier bench
     still exists, one fold down, for testing what a public consumer sees.
   {% endcomment %}
-  <form method="post" class="card mb-4 p-4">
-    {% csrf_token %}
-    <input type="hidden" name="tier" value="agents-only" />
-    <div class="flex flex-wrap items-center gap-3">
-      <button type="submit" class="btn-primary">Start asking</button>
-      <span class="text-xs text-muted">
-        Opens on your own view of the brain — every note except the private ones.
-      </span>
+  {% comment %}
+    Asking from this page bills the Anthropic API key — a server cannot
+    authenticate with a Max subscription, so there is no free mode here.
+    The same question costs nothing in Claude Code. Rather than hide the
+    page, it says where the answer actually comes from.
+  {% endcomment %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="card-title">Ask it in Claude Code, not here</h2>
+      <span class="badge badge-muted">paid runs off</span>
     </div>
-  </form>
+    <div class="card-body space-y-3 text-sm">
+      <p>
+        Every question asked on this page bills the API key — about
+        <strong>$0.10 a question</strong>. A server cannot use your Max
+        subscription, so there is no free mode on the web.
+      </p>
+      <p>
+        In Claude Code, opening the brain repo and asking costs nothing beyond
+        your subscription. The <code class="font-mono">mind-reader</code> skill
+        is the retrieval protocol; it reads the same notes this page would.
+      </p>
+      <pre class="pane-terminal overflow-x-auto p-3 text-xs">cd &quot;C:\Users\iskan\onedrive\brain&quot;
+claude
+&gt; what did I learn from the netcup migration?</pre>
+      <p class="text-xs text-muted">
+        Old sessions below stay readable. To turn paid answers back on, set
+        <code class="font-mono">AGENT_RUNS_ENABLED=1</code> in the server's
+        <code class="font-mono">.env</code> and restart.
+      </p>
+    </div>
+  </div>
 
   <details class="card mb-4">
     <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium">

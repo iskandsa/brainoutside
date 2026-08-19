@@ -13,6 +13,7 @@ import decimal
 import logging
 
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import F
 from django.utils import timezone
@@ -143,9 +144,24 @@ async def run_turn(session: ChatSession, user_text: str):
     # unwinding from GeneratorExit, where awaiting anything raises
     # "async generator ignored GeneratorExit" (see `stream_agent`), and a
     # single cache op either side of a 5-30s run is not worth two idioms.
+    from apps.feeds.services.feeder import AGENT_OFF_HINT
+
+    # Same rule as extraction: no paid agent runs from the server.
+    if not settings.AGENT_RUNS_ENABLED:
+        yield ("error", {
+            "message": "Asking the brain from this page is switched off "
+                       "because every question bills the API key. " + AGENT_OFF_HINT,
+        })
+        return
+
     lock = turn_lock_key(session.pk)
     ttl = await sync_to_async(_lock_ttl)()
-    if not cache.add(lock, "1", ttl):
+    # `aadd`, not `add`: this runs inside an async generator, and the
+    # DATABASE cache backend reaches the ORM, which Django refuses to do
+    # synchronously from async context. Under Redis the sync call happened
+    # to work, so dropping Redis broke every chat turn with
+    # SynchronousOnlyOperation. The async API is correct on both backends.
+    if not await cache.aadd(lock, "1", ttl):
         yield ("error", {
             "message": "This session already has a turn running — wait for it "
                        "to finish, or open a new session.",
