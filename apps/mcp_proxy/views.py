@@ -505,7 +505,15 @@ async def mcp_proxy_view(
         # Prefix-level lockout gate (mirrors the bearer-header branch
         # below). 10 fails / 60s on a prefix → 5min 429 lockout.
         url_token_plain = getattr(request, "_url_token_plain", token)
-        gate = is_url_token_locked(url_token_plain)
+        # sync_to_async: this view is async and the lockout gate reads the
+        # cache, which on this install is the DATABASE backend. Django
+        # refuses ORM access from an async context, so the plain call
+        # raised SynchronousOnlyOperation and every connector request
+        # 500d. It only ever worked because Redis never touched the ORM.
+        # Same treatment `record_use` already gets a few lines below.
+        gate = await sync_to_async(is_url_token_locked, thread_sensitive=True)(
+            url_token_plain
+        )
         if not gate.allowed:
             resp = JsonResponse(
                 {
@@ -574,7 +582,10 @@ async def mcp_proxy_view(
         # from forwarding so the FastMCP loopback doesn't see it.
         bearer_for_gate = _bearer_token_from_request(request)
         if bearer_for_gate is not None:
-            gate = is_token_locked(bearer_for_gate)
+            # Async-context safe, for the same reason as the URL-token gate above.
+            gate = await sync_to_async(is_token_locked, thread_sensitive=True)(
+                bearer_for_gate
+            )
             if not gate.allowed:
                 resp = JsonResponse(
                     {
