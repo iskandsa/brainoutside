@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
@@ -291,6 +292,25 @@ def _handle_action(request, feed: Feed) -> None:
             )
         if not claimed:
             messages.error(request, "Feed is already being applied.")
+            return
+        # With no queue daemon, apply in-request. It is a git commit and
+        # push of a 787 KB repo — a couple of seconds — and the atomic
+        # pending->approving claim above already makes a double-click safe.
+        # Running it here also means a failure is visible immediately
+        # instead of landing silently on a worker nobody is watching.
+        if not settings.TASK_QUEUE_ENABLED:
+            from apps.feeds.services import approval
+
+            try:
+                approval.apply_feed(feed_id=feed.pk)
+            except Exception as exc:  # noqa: BLE001 — boundary
+                messages.error(request, f"Approval failed: {exc}")
+                return
+            feed.refresh_from_db()
+            if feed.status in ("approved", "edited"):
+                messages.success(request, f"Approved and committed: {feed.commit_hash[:12]}")
+            else:
+                messages.error(request, feed.error or "Approval did not complete.")
             return
         try:
             from django_q.tasks import async_task

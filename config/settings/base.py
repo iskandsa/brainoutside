@@ -269,6 +269,8 @@ FEED_PAYLOAD_MAX_KB = _env.FEED_PAYLOAD_MAX_KB
 # Every server-side agent run bills the API key. Off here; the same
 # work runs in Claude Code on the owner's subscription for nothing.
 AGENT_RUNS_ENABLED = _env.AGENT_RUNS_ENABLED
+# No queue daemon: cron runs the schedule, approvals commit inline.
+TASK_QUEUE_ENABLED = _env.TASK_QUEUE_ENABLED
 BRAIN_GIT_WRITE_PAT = _env.BRAIN_GIT_WRITE_PAT
 BRAIN_GIT_WRITE_PAT_PATH = _env.BRAIN_GIT_WRITE_PAT_PATH.strip()
 BRAIN_COMMIT_NAME = _env.BRAIN_COMMIT_NAME.strip() or "brain-app"

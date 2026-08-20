@@ -220,6 +220,13 @@ class Settings(BaseSettings):
     #: skills that live in the brain repo itself.
     #: Capture, approval and browsing never touch an agent and are unaffected.
     AGENT_RUNS_ENABLED: bool = False
+
+    #: The django-q2 cluster. Off on this install: it cost five processes
+    #: and ~336 MB resident to run five small cron jobs and commit the
+    #: occasional approval. System cron runs the jobs (see the
+    #: `run_scheduled` command) and approval commits inline in the request,
+    #: which for a single operator takes a couple of seconds.
+    TASK_QUEUE_ENABLED: bool = False
     # env label baked into the cache key prefix so prod and
     # dev never share a key namespace even when pointed at the same
     # Redis instance (rare but happens during staging-against-prod-redis
