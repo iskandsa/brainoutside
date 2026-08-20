@@ -314,7 +314,28 @@ class AssembleContext(Endpoint):
         duration_ms: int | None
 
     async def run(self, inp: Input, ctx: Ctx) -> Output:
+        from django.conf import settings
+
+        from apps.feeds.services.feeder import AGENT_OFF_HINT
         from apps.reader.services import reader, sdk_runner
+
+        # The ONE MCP tool that costs money. Every other tool here hands
+        # back markdown the server already has; this one runs a Claude
+        # agent ON THE SERVER to assemble a context pack, billed to the
+        # API key (~$0.33 a call). It was missed when paid runs were
+        # switched off, because it does not go through the feeder or the
+        # chat path — so the switch has to be checked here too.
+        #
+        # This matters for a specific promise: asking the brain from the
+        # Claude phone app is free ONLY because the thinking happens in
+        # the app, on the subscription, while the server just serves
+        # notes. An unguarded server-side agent would quietly break that.
+        if not settings.AGENT_RUNS_ENABLED:
+            raise ValueError(
+                "assemble-context runs an agent on the server and is switched "
+                "off here because it bills per call. Read the notes directly "
+                "with list-notes and get-note, which are free. " + AGENT_OFF_HINT
+            )
 
         tier = await sync_to_async(_tier, thread_sensitive=True)(ctx)
         try:
